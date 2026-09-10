@@ -1,0 +1,1307 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>비트 4남매 - 일반 모드 난이도 대폭 하향 패치</title>
+  <style>
+    * { box-sizing: border-box; user-select: none; margin: 0; padding: 0; }
+    body {
+      background: #0a0a14;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      overflow: hidden;
+    }
+    #game-container {
+      position: relative;
+      width: 100%;
+      max-width: 440px;
+      height: 640px;
+      background: #121324;
+      border: 3px solid #ff0055;
+      border-radius: 14px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 0 20px rgba(255, 0, 85, 0.4);
+    }
+    #top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 14px;
+      background: #1b1b38;
+      font-weight: bold;
+      font-size: 14px;
+      border-bottom: 2px solid #2e2e54;
+      z-index: 5;
+    }
+    #hp-bar-container { width: 100%; height: 6px; background: #333; z-index: 5; }
+    #hp-bar-fill { height: 100%; background: #00ffcc; width: 100%; transition: width 0.2s, background 0.2s; }
+    
+    #boss-hp-container {
+      position: absolute; top: 48px; left: 10%; width: 80%; height: 12px;
+      background: #111; border: 2px solid #555; border-radius: 6px; z-index: 5; display: none;
+    }
+    #boss-hp-fill { height: 100%; background: #ff0055; width: 100%; border-radius: 4px; transition: width 0.1s; }
+    #boss-timer { position: absolute; top: 64px; width: 100%; text-align: center; color: #fff; font-weight: bold; z-index: 5; display: none; font-size: 13px; text-shadow: 1px 1px 2px #000; }
+
+    canvas { flex: 1; background: radial-gradient(circle at bottom, #231326 0%, #0d0d1a 100%); display: block; z-index: 1; }
+    
+    #controls { display: flex; gap: 8px; padding: 12px; background: #1b1b38; border-top: 2px solid #2e2e54; z-index: 5; }
+    .btn { flex: 1; padding: 14px 0; font-size: 16px; font-weight: bold; border: none; border-radius: 10px; cursor: pointer; color: #fff; transition: transform 0.08s; }
+    .btn:active { transform: scale(0.96); }
+    #attack-btn { background: linear-gradient(45deg, #c0292b, #e74c3c); box-shadow: 0 4px 10px rgba(231,76,60,0.4); flex: 1.2; }
+    #shop-btn { background: linear-gradient(45deg, #f39c12, #f1c40f); box-shadow: 0 4px 10px rgba(243,156,18,0.4); color: #111; }
+    #chat-toggle-btn { background: #8e44ad; font-size: 14px; flex: 0.7; }
+    
+    .screen {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(10, 10, 20, 0.95);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 14px; padding: 16px; z-index: 10;
+    }
+    .hidden { display: none !important; }
+    h1 { font-size: 28px; color: #ffeb3b; text-shadow: 0 0 10px #ff0055; text-align: center; }
+    
+    .shop-list { width: 100%; display: flex; flex-direction: column; gap: 8px; max-height: 440px; overflow-y: auto; padding-right: 4px; }
+    .shop-item { background: #1b1b38; border: 2px solid #3d3d6b; border-radius: 10px; padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; }
+    .shop-item.equipped { border-color: #00ffcc; box-shadow: 0 0 8px #00ffcc; }
+    .item-buy-btn { padding: 8px 12px; border-radius: 6px; border: none; font-weight: bold; cursor: pointer; }
+    
+    #gallery-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: 100%; max-height: 460px; overflow-y: auto; padding: 4px; }
+    .gallery-item { background: #1b1b38; border: 2px solid #3d3d6b; border-radius: 10px; padding: 10px 5px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+    
+    .shake { animation: shake 0.2s cubic-bezier(.36,.07,.19,.97) both; }
+    @keyframes shake {
+      10%, 90% { transform: translate3d(-2px, 0, 0); }
+      20%, 80% { transform: translate3d(3px, 0, 0); }
+      30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+      40%, 60% { transform: translate3d(4px, 0, 0); }
+    }
+
+    #ending-scroll-container {
+      width: 100%; height: 75%; overflow: hidden; position: relative; margin-top: 10px;
+      mask-image: linear-gradient(to bottom, transparent, black 10%, black 90%, transparent);
+      -webkit-mask-image: linear-gradient(to bottom, transparent, black 10%, black 90%, transparent);
+    }
+    #ending-text {
+      position: absolute; width: 100%; text-align: center; color: #fff; font-size: 14px; line-height: 2.1;
+      animation: scrollUp 45s linear forwards;
+    }
+    @keyframes scrollUp {
+      0% { top: 100%; }
+      100% { top: -260%; }
+    }
+
+    #chat-box {
+      position: absolute; bottom: 60px; left: 10px; width: calc(100% - 20px); height: 200px;
+      background: rgba(18, 19, 36, 0.95); border: 2px solid #8e44ad; border-radius: 10px;
+      display: flex; flex-direction: column; z-index: 8; backdrop-filter: blur(4px);
+    }
+    #chat-header {
+      display: flex; justify-content: space-between; align-items: center; padding: 6px 10px;
+      background: #1b1b38; font-size: 12px; font-weight: bold; color: #ffeb3b;
+      border-bottom: 1px solid #3d3d6b; border-radius: 8px 8px 0 0;
+    }
+    #chat-messages { flex: 1; overflow-y: auto; padding: 8px; font-size: 13px; display: flex; flex-direction: column; gap: 4px; user-select: text; }
+    .chat-msg { word-break: break-all; line-height: 1.3; }
+    .chat-author { font-weight: bold; color: #00ffcc; }
+    #chat-input-bar { display: flex; padding: 6px; gap: 6px; background: rgba(10, 10, 20, 0.9); border-top: 1px solid #3d3d6b; border-radius: 0 0 8px 8px; }
+    #chat-nick-input { width: 60px; padding: 6px; border-radius: 6px; border: 1px solid #444; background: #222; color: #fff; font-size: 12px; user-select: text; }
+    #chat-msg-input { flex: 1; padding: 6px 10px; border-radius: 6px; border: 1px solid #444; background: #222; color: #fff; font-size: 12px; user-select: text; }
+    #chat-send-btn { padding: 6px 12px; background: #8e44ad; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
+  </style>
+</head>
+<body>
+
+  <div id="game-container">
+    <div id="top-bar">
+      <span id="hp-txt" style="color: #ff4444; font-size: 14px;">❤️ 10</span>
+      <span id="stage-txt" style="color: #ffeb3b;">🚀 STAGE 1</span>
+      <span id="coin-txt" style="color: #00ffcc;">💰 0 C</span>
+    </div>
+    <div id="hp-bar-container"><div id="hp-bar-fill"></div></div>
+    
+    <div id="boss-hp-container"><div id="boss-hp-fill"></div></div>
+    <div id="boss-timer">00.00s</div>
+
+    <canvas id="gameCanvas" width="440" height="480"></canvas>
+
+    <!-- 실시간 채팅 오버레이 -->
+    <div id="chat-box" class="hidden">
+      <div id="chat-header">
+        <span>💬 전체 공유 채팅 (게임 일시정지 중)</span>
+        <button id="chat-close-x-btn" style="background:none; border:none; color:#ff4444; font-size:16px; font-weight:bold; cursor:pointer;">✕</button>
+      </div>
+      <div id="chat-messages">
+        <div style="color:#aaa; font-size:11px;">💬 실시간 채팅 연결 완료!</div>
+      </div>
+      <form id="chat-input-bar">
+        <input type="text" id="chat-nick-input" placeholder="닉네임" maxlength="6" value="비트">
+        <input type="text" id="chat-msg-input" placeholder="메시지 입력..." maxlength="50" autocomplete="off">
+        <button type="submit" id="chat-send-btn">전송</button>
+      </form>
+    </div>
+
+    <div id="controls">
+      <button class="btn" id="attack-btn">💥 공격!</button>
+      <button class="btn" id="shop-btn">🛒 비트 상점</button>
+      <button class="btn" id="chat-toggle-btn">💬 채팅</button>
+    </div>
+
+    <!-- 로비 -->
+    <div class="screen" id="start-screen">
+      <h1>🌱 비트 4남매 🌱</h1>
+      <p style="font-size: 14px; color: #bbb; text-align: center; line-height: 1.5; margin-bottom: 8px;">
+        일반 모드: 팩맨 몬스터 처치<br>보스전: A, D키로 회피하며 보스 격파!
+      </p>
+      <button class="btn" id="start-btn" style="background:#e74c3c; width: 230px; padding: 12px; margin-bottom: 6px;">🚀 일반 모드 시작</button>
+      <button class="btn" id="open-boss-lobby-btn" style="background:#8e44ad; width: 230px; padding: 12px; margin-bottom: 6px;">😈 보스전 모드</button>
+      <button class="btn" id="open-gallery-btn" style="background:#3498db; width: 230px; padding: 12px;">📖 비트 도감 보기 (71종)</button>
+    </div>
+
+    <!-- 보스전 로비 -->
+    <div class="screen hidden" id="boss-lobby-screen">
+      <h2 style="color: #ff0055; font-size: 22px; text-shadow: 0 0 10px #ff0055;">😈 보스전 메뉴</h2>
+      <button class="btn" id="boss-select-beat-btn" style="background:#00ffcc; color:#111; width: 230px; padding: 10px; margin: 6px 0;">전투 비트 교체하기</button>
+      
+      <div style="display: flex; flex-direction: column; gap: 7px; width: 230px; margin-bottom: 12px;">
+        <button class="btn boss-diff-btn" data-diff="0" style="background:#2ecc71;">🌱 쉬움 (화산)</button>
+        <button class="btn boss-diff-btn" data-diff="1" style="background:#f39c12;">🔥 보통 (강화 화산)</button>
+        <button class="btn boss-diff-btn" data-diff="2" style="background:#e67e22;">🌋 어려움 (불타는 화산)</button>
+        <button class="btn boss-diff-btn" data-diff="3" style="background:#c0392b;">🚫 금지 (블러디 믹서기)</button>
+        <button class="btn boss-diff-btn" data-diff="4" style="background:#000; border: 2px solid #00ff00; color:#00ff00;">☠️ 불멸 (전자레인지)</button>
+      </div>
+
+      <button class="btn" id="close-boss-lobby-btn" style="background: #555; padding: 10px 24px; width: 230px;">로비로 돌아가기</button>
+    </div>
+
+    <!-- 상점/비트 선택 창 -->
+    <div class="screen hidden" id="shop-screen">
+      <h2 id="shop-title" style="color: #ffeb3b; font-size: 20px;">🛒 비트 상점</h2>
+      <div class="shop-list" id="shop-list"></div>
+      <button class="btn" id="close-shop-btn" style="background: #ff0055; padding: 10px 24px; flex: none;">닫기</button>
+    </div>
+
+    <!-- 도감 화면 -->
+    <div class="screen hidden" id="gallery-screen">
+      <h2 style="color: #00ffcc; font-size: 22px;">📖 비트 도감 (총 71종)</h2>
+      <div id="gallery-list"></div>
+      <button class="btn" id="close-gallery-btn" style="background: #ff0055; padding: 10px 24px; flex: none; margin-top: 10px;">로비로 돌아가기</button>
+    </div>
+
+    <!-- 결과 화면 -->
+    <div class="screen hidden" id="gameover-screen">
+      <h1 id="result-title" style="color: #ff3333;">GAME OVER</h1>
+      <p id="final-score" style="font-size: 15px; color: #fff; line-height: 1.6; text-align: center; margin-bottom: 16px; white-space: pre-line;"></p>
+      <button class="btn" id="restart-btn" style="background:#fff; color:#111; padding: 12px 36px; font-size: 16px; max-width: 240px;">로비로 돌아가기</button>
+    </div>
+
+    <!-- 불멸 엔딩 -->
+    <div class="screen hidden" id="ending-screen" style="background: #000;">
+      <div id="ending-scroll-container">
+        <div id="ending-text">
+          비트 멸종의 위기에서 도와준 당신...<br><br>
+          언젠가는 당신도 이런 비극이 찾아올 것이라고....<br>
+          하지만 당신같은 용감한 비트가 찾아와 모두를 구할 거라고....<br>
+          언젠가는 이 말의 뜻을 당신도 이해하게 되겠지...<br>
+          그럼 용감한 비트한테 인사하라고...<br>
+          이 말을 그대로 전달하는게 비트에 문화이지....<br><br>
+          플레이어? 당신도 알겠지.<br>
+          당신은 꿈을 꾸고 있던거야.<br>
+          그가 말하길, 한 화면 뒤에 현실을 마주해야 한다는 공포감을 갖고 꿈을 꿨지.<br>
+          하지만 긴 꿈속에서도 공포감이 들어날 때가 있어.<br>
+          검은 태양 아래에서 두려움에 떨며 슬픈 창조물을 움켜잡고 울고 있겠지.<br><br>
+          우린 생각을 읽고 있어. 니가 무슨 생각을 하는지.<br>
+          니가 어떠한 행동을 하는지.<br>
+          아, 인터페이스 말이구나.<br>
+          화면에 갇혀 있어도 우리는 꿈을 읽고 글로 표현할 수 있는데 말이지.<br><br>
+          그리고 세상은 네게 필요한 모든 것은 이미 네 안에 있다고 말했어.<br><br>
+          그리고 세상은 네가 생각하는 것보다 넌 더 강하다고 말했어.<br><br>
+          그리고 세상은 네가 낮이라고 말했어.<br><br>
+          그리고 세상은 네가 밤이라고 말했어.<br><br>
+          그리고 세상은 네가 싸우고 있는 어둠이 네 안에 존재한다고 말했어.<br><br>
+          그리고 세상은 네가 찾고 있는 빛이 네 안에 존재한다고 말했어.<br><br>
+          그리고 세상은 네가 혼자가 아니라고 말했어.<br><br>
+          그리고 세상은 네가 다른 모든 것들과 떨어져 있지 않다고 말했어.<br><br>
+          그리고 세상은 네가 스스로 맛을 느끼고 스스로 대화하며<br>
+          자신의 코드를 읽는 세상 그 자체라고 말했어.<br><br>
+          그리고 세상은 네가 사랑 그 자체니까 널 사랑한다고 말했어.<br><br>
+          그리고 게임이 끝나고 플레이어가 꿈에서 깼어.<br>
+          그리고 플레이어는 새로운 꿈을 꾸기 시작해.<br>
+          그리고 다시 꿈을 꾸고, 더 좋은 꿈을 꿔.<br>
+          그리고 플레이어는 세상 그 자체고 사랑 그 자체야.<br><br>
+          네가 바로 그 플레이어야.<br><br>
+          이제 일어나.
+        </div>
+      </div>
+      <button class="btn" id="skip-ending-btn" style="background: #333; color: #fff; padding: 10px 20px; position: absolute; bottom: 16px; right: 16px; width: 90px;">스킵</button>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    let audioCtx;
+    function initAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+    
+    function playSound(type) {
+      if (!audioCtx) return;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      if (type === 'god') {
+        osc.type = 'sawtooth'; osc.frequency.setValueAtTime(450, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.35);
+        gain.gain.setValueAtTime(0.25, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.35);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.35);
+      } else if (type === 'shield') {
+        osc.type = 'square'; osc.frequency.setValueAtTime(140, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + 0.18);
+        gain.gain.setValueAtTime(0.25, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.18);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.18);
+      } else if (type === 'hit') {
+        osc.type = 'sawtooth'; osc.frequency.setValueAtTime(120, audioCtx.currentTime);
+        osc.frequency.linearRampToValueAtTime(20, audioCtx.currentTime + 0.2);
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime); gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.2);
+      } else if (type === 'freeze') {
+        osc.type = 'sine'; osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(200, audioCtx.currentTime + 0.25);
+        gain.gain.setValueAtTime(0.2, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.25);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.25);
+      } else if (type === 'thunder') {
+        osc.type = 'sawtooth'; osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+        osc.frequency.linearRampToValueAtTime(80, audioCtx.currentTime + 0.2);
+        gain.gain.setValueAtTime(0.35, audioCtx.currentTime); gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.2);
+      } else if (type === 'heal') {
+        osc.type = 'sine'; osc.frequency.setValueAtTime(450, audioCtx.currentTime);
+        osc.frequency.linearRampToValueAtTime(900, audioCtx.currentTime + 0.2);
+        gain.gain.setValueAtTime(0.25, audioCtx.currentTime); gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.2);
+      } else {
+        osc.type = 'square'; osc.frequency.setValueAtTime(650, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(300, audioCtx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+      }
+    }
+
+    let coins = 0; let kills = 0; let stage = 1;
+    let equippedBitIndex = 0; let playerHp = 0;
+    let isGameOver = false; let isPaused = false; 
+    let gameMode = 'normal';
+    let currentShopContext = 'normal';
+    let transTimer = 0;
+    
+    let playerX = canvas.width / 2;
+    const keys = { a: false, d: false, left: false, right: false };
+    window.addEventListener('keydown', e => {
+      if (document.activeElement.tagName === 'INPUT') return;
+      if(e.key === 'a' || e.key === 'A') keys.a = true;
+      if(e.key === 'd' || e.key === 'D') keys.d = true;
+      if(e.key === 'ArrowLeft') keys.left = true;
+      if(e.key === 'ArrowRight') keys.right = true;
+    });
+    window.addEventListener('keyup', e => {
+      if(e.key === 'a' || e.key === 'A') keys.a = false;
+      if(e.key === 'd' || e.key === 'D') keys.d = false;
+      if(e.key === 'ArrowLeft') keys.left = false;
+      if(e.key === 'ArrowRight') keys.right = false;
+    });
+
+    const bits = [
+      { id: 0, name: "일반 비트", price: 0, damage: 1, hp: 10, color: "#a81c47", leafColor: "#2ecc71", width: 4, multi: 1, size: 20, owned: true },
+      { id: 1, name: "1. 썩은비트", price: 20, damage: 2, hp: 8, color: "#595036", leafColor: "#3d4221", width: 5, multi: 1, size: 20, owned: false },
+      { id: 2, name: "2. 탐욕의 비트", price: 50, damage: 4, hp: 20, color: "#d4af37", leafColor: "#f1c40f", width: 6, multi: 1, size: 20, owned: false },
+      { id: 3, name: "3. 슈퍼 비트", price: 100, damage: 8, hp: 45, color: "#2980b9", leafColor: "#1abc9c", width: 8, multi: 1, size: 20, owned: false },
+      { id: 4, name: "4. 미니비트", price: 160, damage: 15, hp: 70, color: "#5dade2", leafColor: "#85c1e9", width: 16, multi: 1, size: 14, owned: false, projectile: 'shield', isPekka: true },
+      { id: 5, name: "5. 미니비트 아웃워치", price: 250, damage: 18, hp: 90, color: "#e67e22", leafColor: "#f39c12", width: 9, multi: 2, size: 14, owned: false },
+      { id: 6, name: "6. 천사 비트", price: 400, damage: 26, hp: 130, color: "#ecf0f1", leafColor: "#ffffff", width: 12, multi: 2, size: 20, owned: false },
+      { id: 7, name: "7. 비트 4남매", price: 650, damage: 40, hp: 200, color: "#e84393", leafColor: "#2ed573", width: 8, multi: 4, size: 18, isFour: true, owned: false },
+      { id: 8, name: "8. 미니비트 슈퍼", price: 900, damage: 55, hp: 280, color: "#9b59b6", leafColor: "#e056fd", width: 15, multi: 2, size: 14, owned: false },
+      { id: 9, name: "9. 재앙의 비트", price: 1300, damage: 80, hp: 400, color: "#c0392b", leafColor: "#7f1d1d", width: 22, multi: 3, size: 20, owned: false },
+      { id: 10, name: "10. THE GOD", price: 2000, damage: 120, hp: 600, color: "#fffb00", leafColor: "#ffffff", width: 32, multi: 4, size: 20, isGod: true, owned: false },
+      { id: 11, name: "11. 우주 비트", price: 2600, damage: 150, hp: 750, color: "#190033", leafColor: "#4b0082", width: 15, multi: 4, size: 20, owned: false },
+      { id: 12, name: "12. 바이러스 비트", price: 3200, damage: 180, hp: 900, color: "#00ff00", leafColor: "#32cd32", width: 8, multi: 5, size: 20, owned: false },
+      { id: 13, name: "13. 일렉트로 비트", price: 3900, damage: 220, hp: 1100, color: "#00ffff", leafColor: "#ffff00", width: 12, multi: 5, size: 20, owned: false },
+      { id: 14, name: "14. 워터 마법 비트", price: 4700, damage: 260, hp: 1300, color: "#0000ff", leafColor: "#00bfff", width: 25, multi: 4, size: 20, owned: false },
+      { id: 15, name: "15. 용암의 비트", price: 5600, damage: 320, hp: 1550, color: "#ff4500", leafColor: "#ff0000", width: 30, multi: 3, size: 20, owned: false },
+      { id: 16, name: "16. 미니비트 어메이징", price: 6600, damage: 380, hp: 1800, color: "#1e90ff", leafColor: "#87cefa", width: 18, multi: 4, size: 14, owned: false, projectile: 'shield', isPekka: true },
+      { id: 17, name: "17. 별빛 없는 새벽", price: 7700, damage: 450, hp: 2100, color: "#2f4f4f", leafColor: "#708090", width: 10, multi: 5, size: 20, owned: false },
+      { id: 18, name: "18. 종말의 비트", price: 8900, damage: 550, hp: 2500, color: "#000000", leafColor: "#8b0000", width: 40, multi: 2, size: 20, owned: false },
+      { id: 19, name: "19. 태양의 비트", price: 10200, damage: 650, hp: 3000, color: "#ffa500", leafColor: "#ffd700", width: 35, multi: 4, size: 20, owned: false },
+      { id: 20, name: "20. 미니비트 어쎈셜", price: 11600, damage: 780, hp: 3600, color: "#00fa9a", leafColor: "#3cb371", width: 20, multi: 4, size: 14, owned: false, projectile: 'shield', isPekka: true },
+      { id: 21, name: "21. 에너레이티드 미니", price: 13100, damage: 920, hp: 4200, color: "#ff1493", leafColor: "#ff69b4", width: 25, multi: 4, size: 14, owned: false, projectile: 'shield', isPekka: true },
+      { id: 22, name: "22. 폭탄 비트", price: 14700, damage: 1100, hp: 4900, color: "#363636", leafColor: "#ff0000", width: 50, multi: 3, size: 20, owned: false },
+      { id: 23, name: "23. 빛의 비트", price: 16500, damage: 1300, hp: 5700, color: "#ffffe0", leafColor: "#ffffff", width: 20, multi: 6, size: 20, owned: false },
+      { id: 24, name: "24. 쇠퇴의 비트", price: 18500, damage: 1550, hp: 6600, color: "#8b4513", leafColor: "#a0522d", width: 60, multi: 2, size: 20, owned: false },
+      { id: 25, name: "25. 미니비트 살상모드", price: 20700, damage: 1850, hp: 7600, color: "#dc143c", leafColor: "#800000", width: 30, multi: 5, size: 14, owned: false, projectile: 'shield', isPekka: true },
+      { id: 26, name: "26. 미니비트 광학 레이저", price: 23000, damage: 2200, hp: 8700, color: "#00ced1", leafColor: "#40e0d0", width: 50, multi: 8, size: 14, owned: false, isPekka: true },
+      { id: 27, name: "27. 플라즈마 비트", price: 25500, damage: 2600, hp: 10000, color: "#9400d3", leafColor: "#8a2be2", width: 25, multi: 6, size: 20, owned: false },
+      { id: 28, name: "28. 전설의 비트", price: 28500, damage: 3100, hp: 11500, color: "#ffd700", leafColor: "#fff8dc", width: 35, multi: 5, size: 20, owned: false, isGod: true },
+      { id: 29, name: "29. 은둔자", price: 32000, damage: 3700, hp: 13000, color: "#696969", leafColor: "#808080", width: 10, multi: 8, size: 20, owned: false },
+      { id: 30, name: "30. 최강의 미니비트", price: 36000, damage: 4400, hp: 15000, color: "#000080", leafColor: "#4169e1", width: 35, multi: 5, size: 14, owned: false, projectile: 'shield', isPekka: true },
+      { id: 31, name: "31. THE GOD 레인보우", price: 41000, damage: 5200, hp: 17500, color: "#ff69b4", leafColor: "#00ffff", width: 60, multi: 8, size: 20, owned: false, isGod: true, rainbow: true },
+      { id: 32, name: "32. 최상위 미니비트", price: 47000, damage: 6200, hp: 20500, color: "#191970", leafColor: "#6495ed", width: 35, multi: 6, size: 14, owned: false, projectile: 'shield', isPekka: true },
+      { id: 33, name: "33. 행운 플라이즈", price: 54000, damage: 7400, hp: 24000, color: "#32cd32", leafColor: "#adff2f", width: 30, multi: 6, size: 14, owned: false, projectile: 'shield', isPekka: true },
+      { id: 34, name: "34. 아이언맨 비트", price: 62000, damage: 8800, hp: 28000, color: "#b22222", leafColor: "#ffd700", width: 30, multi: 7, size: 20, owned: false },
+      { id: 35, name: "35. 스파이더맨 비트", price: 71000, damage: 10500, hp: 33000, color: "#ff0000", leafColor: "#0000cd", width: 20, multi: 9, size: 20, owned: false },
+      { id: 36, name: "36. 새벽과 낮", price: 81000, damage: 12500, hp: 39000, color: "#87ceeb", leafColor: "#ffebcd", width: 60, multi: 5, size: 20, owned: false },
+      { id: 37, name: "37. 스트롱 이스트 미니", price: 92000, damage: 15000, hp: 46000, color: "#ff8c00", leafColor: "#ff4500", width: 40, multi: 6, size: 14, owned: false, projectile: 'shield', isPekka: true },
+      { id: 38, name: "38. 별 비트", price: 105000, damage: 18000, hp: 54000, color: "#ffff00", leafColor: "#ffdead", width: 40, multi: 8, size: 20, owned: false },
+      { id: 39, name: "39. THE GOD 미니 (합체)", price: 120000, damage: 22000, hp: 65000, color: "#00ffff", leafColor: "#ffffff", width: 50, multi: 8, size: 16, owned: false, projectile: 'shield', isPekka: true, isGod: true },
+      { id: 40, name: "40. 비트 GOD (초월)", price: 150000, damage: 30000, hp: 80000, color: "#ffffff", leafColor: "#ff00ff", width: 80, multi: 12, size: 20, owned: false, isGod: true, isAll: true, rainbow: true },
+      { id: 41, name: "41. 플라이더 비트", price: 175000, damage: 34000, hp: 90000, color: "#27ae60", leafColor: "#2ecc71", width: 35, multi: 6, size: 20, owned: false, typeTag: 'flyder' },
+      { id: 42, name: "42. 각성 천사 비트", price: 205000, damage: 39000, hp: 105000, color: "#f5f6fa", leafColor: "#ffffff", width: 45, multi: 8, size: 20, owned: false, isGod: true, typeTag: 'awakened_angel' },
+      { id: 43, name: "43. 거짓의 비트", price: 240000, damage: 45000, hp: 120000, color: "#4834d4", leafColor: "#686de0", width: 40, multi: 7, size: 20, owned: false, typeTag: 'shadow_milk' },
+      { id: 44, name: "44. 비트 24 주니어", price: 280000, damage: 52000, hp: 140000, color: "#eb4d4b", leafColor: "#6ab04c", width: 30, multi: 10, size: 20, owned: false, typeTag: 'juniors' },
+      { id: 45, name: "45. 미니비트 레전더리", price: 325000, damage: 60000, hp: 165000, color: "#f9ca24", leafColor: "#f0932b", width: 45, multi: 7, size: 14, owned: false, isPekka: true, isGod: true, projectile: 'shield' },
+      { id: 46, name: "46. 플라이더 미니비트", price: 375000, damage: 70000, hp: 195000, color: "#22a6b3", leafColor: "#7ed6df", width: 40, multi: 8, size: 14, owned: false, isPekka: true, typeTag: 'flyder' },
+      { id: 47, name: "47. 비트AI", price: 430000, damage: 82000, hp: 230000, color: "#30336b", leafColor: "#00d2d3", width: 35, multi: 8, size: 20, owned: false, typeTag: 'ai' },
+      { id: 48, name: "48. 다이아 비트", price: 490000, damage: 95000, hp: 270000, color: "#00ffff", leafColor: "#c7ecee", width: 50, multi: 8, size: 20, owned: false, typeTag: 'diamond' },
+      { id: 49, name: "49. 불타는 비트", price: 560000, damage: 110000, hp: 315000, color: "#eb2f06", leafColor: "#fa983a", width: 55, multi: 8, size: 20, owned: false, typeTag: 'flame' },
+      { id: 50, name: "50. 전자기파 비트", price: 640000, damage: 130000, hp: 370000, color: "#0abde3", leafColor: "#10ac84", width: 50, multi: 9, size: 20, owned: false, typeTag: 'emp' },
+      { id: 51, name: "51. 미니비트 트랜센드", price: 730000, damage: 155000, hp: 430000, color: "#5f27cd", leafColor: "#ff9ff3", width: 60, multi: 9, size: 14, owned: false, isPekka: true, isGod: true, projectile: 'shield' },
+      { id: 52, name: "52. 모든 원소의 비트", price: 830000, damage: 185000, hp: 500000, color: "#ff6b6b", leafColor: "#feca57", width: 60, multi: 10, size: 20, owned: false, rainbow: true },
+      { id: 53, name: "53. 플라즈마 비트 에너지폼", price: 940000, damage: 220000, hp: 580000, color: "#9b59b6", leafColor: "#e056fd", width: 65, multi: 9, size: 20, owned: false, isGod: true },
+      { id: 54, name: "54. 분더 비트AI", price: 1060000, damage: 265000, hp: 670000, color: "#ff3838", leafColor: "#ff9f1a", width: 70, multi: 10, size: 20, owned: false, typeTag: 'ai', isGod: true },
+      { id: 55, name: "55. 시공간의 비트", price: 1200000, damage: 320000, hp: 780000, color: "#2c2c54", leafColor: "#706fd3", width: 65, multi: 11, size: 20, owned: false, typeTag: 'spacetime' },
+      { id: 56, name: "56. 플라즈마 비트AI", price: 1360000, damage: 380000, hp: 900000, color: "#3ae374", leafColor: "#67e6dc", width: 75, multi: 10, size: 20, owned: false, typeTag: 'ai' },
+      { id: 57, name: "57. 음양의 비트", price: 1540000, damage: 450000, hp: 1050000, color: "#111111", leafColor: "#ffffff", width: 65, multi: 10, size: 20, owned: false, typeTag: 'yinyang' },
+      { id: 58, name: "58. 무중력 비트AI", price: 1740000, damage: 530000, hp: 1220000, color: "#7158e2", leafColor: "#18dcff", width: 70, multi: 11, size: 20, owned: false, typeTag: 'ai' },
+      { id: 59, name: "59. 블랙홀 비트", price: 1960000, damage: 630000, hp: 1420000, color: "#000000", leafColor: "#4b4b4b", width: 85, multi: 12, size: 20, owned: false, typeTag: 'blackhole' },
+      { id: 60, name: "60. 트랜스 비트", price: 2220000, damage: 750000, hp: 1650000, color: "#e056fd", leafColor: "#686de0", width: 75, multi: 10, size: 20, owned: false, typeTag: 'trans' },
+      { id: 61, name: "61. 플라즈마 (구체)", price: 2520000, damage: 900000, hp: 1950000, color: "#ff9ff3", leafColor: "#feca57", width: 80, multi: 10, size: 20, owned: false, typeTag: 'plasma_orb', rainbow: true, projectile: 'thunder' },
+      { id: 62, name: "62. 호플라 비트AI", price: 2860000, damage: 1100000, hp: 2300000, color: "#ff5252", leafColor: "#34e7e4", width: 90, multi: 12, size: 20, owned: false, typeTag: 'ai', isGod: true },
+      { id: 63, name: "63. 스트레인지 미니비트", price: 3250000, damage: 1350000, hp: 2750000, color: "#3dc1d3", leafColor: "#ea8685", width: 80, multi: 12, size: 14, owned: false, isPekka: true, projectile: 'shield' },
+      { id: 64, name: "64. 플로우 (창 관통)", price: 3700000, damage: 1650000, hp: 3300000, color: "#f19066", leafColor: "#e66767", width: 85, multi: 8, size: 20, owned: false, typeTag: 'flow', projectile: 'spear' },
+      { id: 65, name: "65. 플로우 에너지", price: 4250000, damage: 2050000, hp: 4000000, color: "#f39c12", leafColor: "#f1c40f", width: 90, multi: 10, size: 20, owned: false, typeTag: 'flow', projectile: 'spear' },
+      { id: 66, name: "66. 스타팩트 플로우", price: 4900000, damage: 2550000, hp: 4850000, color: "#e67e22", leafColor: "#00d2d3", width: 95, multi: 12, size: 20, owned: false, typeTag: 'flow', isGod: true, projectile: 'spear' },
+      { id: 67, name: "67. 야르비트", price: 5700000, damage: 3200000, hp: 5900000, color: "#ff4757", leafColor: "#2ed573", width: 90, multi: 12, size: 20, owned: false, typeTag: 'yar', projectile: 'yar' },
+      { id: 68, name: "68. 67비트", price: 6700000, damage: 4000000, hp: 7200000, color: "#1dd1a1", leafColor: "#10ac84", width: 90, multi: 14, size: 20, owned: false, typeTag: '67bit' },
+      { id: 69, name: "69. 만년서리 비트", price: 7900000, damage: 5000000, hp: 8800000, color: "#48dbfb", leafColor: "#00d2d3", width: 90, multi: 12, size: 20, owned: false, typeTag: 'frost', projectile: 'frost' },
+      { id: 70, name: "70. 최대치의 비트AI", price: 9300000, damage: 6300000, hp: 11000000, color: "#575fcf", leafColor: "#ef5777", width: 100, multi: 14, size: 20, owned: false, typeTag: 'ai', isGod: true },
+      { id: 71, name: "71. 과부하 비트AI", price: 12000000, damage: 8500000, hp: 14000000, color: "#ff3f34", leafColor: "#ffd32a", width: 120, multi: 16, size: 20, owned: false, typeTag: 'ai', isGod: true, rainbow: true }
+    ];
+
+    playerHp = bits[0].hp;
+    let projectiles = [];
+    let bossProjectiles = [];
+    let potions = [];
+
+    function updateHpUI() {
+      const maxHp = bits[equippedBitIndex].hp;
+      if (playerHp < 0) playerHp = 0;
+      document.getElementById("hp-txt").innerText = `❤️ ${Math.floor(playerHp)} / ${maxHp}`;
+      const fill = document.getElementById("hp-bar-fill");
+      const percent = (playerHp / maxHp) * 100;
+      fill.style.width = `${percent}%`;
+      fill.style.background = percent > 30 ? "#00ffcc" : "#ff3333";
+    }
+
+    function drawVegetableBeet(targetCtx, bx, by, size, bodyColor, leafColor, bitInfo) {
+      targetCtx.save();
+      if(bitInfo.rainbow) {
+        bodyColor = `hsl(${(Date.now() / 8) % 360}, 100%, 65%)`;
+      }
+      
+      if(bitInfo.isAll || bitInfo.typeTag === 'overload') {
+        targetCtx.shadowBlur = 25; targetCtx.shadowColor = `hsl(${(Date.now() / 6) % 360}, 100%, 50%)`;
+      } else if (bitInfo.isGod) {
+        targetCtx.shadowBlur = 14; targetCtx.shadowColor = bodyColor;
+      }
+
+      if(bitInfo.typeTag === 'trans' && transTimer > 0) {
+        targetCtx.fillStyle = "#34495e";
+        targetCtx.fillRect(bx - size*1.2, by - size, size*2.4, size*2);
+        targetCtx.fillStyle = "#e74c3c";
+        targetCtx.fillRect(bx - size*0.8, by - size*0.4, size*1.6, 6);
+        targetCtx.strokeStyle = "#00ffcc"; targetCtx.lineWidth = 3;
+        targetCtx.strokeRect(bx - size*1.3, by - size*1.1, size*2.6, size*2.2);
+        targetCtx.restore();
+        return;
+      }
+
+      if(bitInfo.typeTag === 'plasma_orb') {
+        targetCtx.fillStyle = bodyColor;
+        targetCtx.beginPath(); targetCtx.arc(bx, by, size*1.2, 0, Math.PI*2); targetCtx.fill();
+        targetCtx.strokeStyle = "#fff"; targetCtx.lineWidth = 3; targetCtx.stroke();
+        targetCtx.restore();
+        return;
+      }
+
+      if(bitInfo.typeTag === 'flyder' || bitInfo.typeTag === 'awakened_angel') {
+        targetCtx.fillStyle = bitInfo.typeTag === 'awakened_angel' ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.6)";
+        targetCtx.beginPath(); targetCtx.ellipse(bx - size*1.5, by - size*0.3, size*0.8, size*0.3, -0.4, 0, Math.PI*2); targetCtx.fill();
+        targetCtx.beginPath(); targetCtx.ellipse(bx + size*1.5, by - size*0.3, size*0.8, size*0.3, 0.4, 0, Math.PI*2); targetCtx.fill();
+      }
+
+      if(bitInfo.typeTag === 'flow') {
+        targetCtx.fillStyle = "#95a5a6";
+        targetCtx.fillRect(bx - 2, by - size*1.8, 4, size*1.2);
+        targetCtx.fillStyle = "#f1c40f";
+        targetCtx.beginPath(); targetCtx.arc(bx, by - size*1.8, 5, 0, Math.PI*2); targetCtx.fill();
+      } else {
+        targetCtx.fillStyle = leafColor;
+        targetCtx.beginPath(); targetCtx.ellipse(bx, by - size * 1.3, size * 0.25, size * 0.6, 0, 0, Math.PI * 2); targetCtx.fill();
+        targetCtx.beginPath(); targetCtx.ellipse(bx - size * 0.45, by - size * 1.1, size * 0.22, size * 0.5, -0.4, 0, Math.PI * 2); targetCtx.fill();
+        targetCtx.beginPath(); targetCtx.ellipse(bx + size * 0.45, by - size * 1.1, size * 0.22, size * 0.5, 0.4, 0, Math.PI * 2); targetCtx.fill();
+      }
+
+      targetCtx.fillStyle = bodyColor;
+      targetCtx.beginPath();
+      targetCtx.moveTo(bx - size, by - size * 0.2);
+      targetCtx.bezierCurveTo(bx - size, by - size * 0.9, bx + size, by - size * 0.9, bx + size, by - size * 0.2);
+      targetCtx.bezierCurveTo(bx + size, by + size * 0.7, bx + size * 0.3, by + size * 1.2, bx, by + size * 1.4);
+      targetCtx.bezierCurveTo(bx - size * 0.3, by + size * 1.2, bx - size, by + size * 0.7, bx - size, by - size * 0.2);
+      targetCtx.fill();
+
+      if(bitInfo.typeTag === 'yinyang') {
+        targetCtx.fillStyle = "#ffffff";
+        targetCtx.beginPath();
+        targetCtx.arc(bx, by + size*0.3, size*0.8, -Math.PI*0.5, Math.PI*0.5, true);
+        targetCtx.fill();
+      }
+
+      if (bitInfo.isPekka) {
+        targetCtx.fillStyle = "#888"; targetCtx.fillRect(bx - size - 4, by - size * 0.2, 5, 8); targetCtx.fillRect(bx + size - 1, by - size * 0.2, 5, 8);
+        targetCtx.fillStyle = "#111"; targetCtx.fillRect(bx - size * 0.65, by - size * 0.2, size * 1.3, 9);
+        targetCtx.fillStyle = "#ffffff"; targetCtx.shadowBlur = 6; targetCtx.shadowColor = "#fff"; targetCtx.fillRect(bx - size * 0.25, by - size * 0.15, size * 0.5, 6); targetCtx.shadowBlur = 0;
+      } else {
+        if(bitInfo.typeTag === 'ai') {
+          targetCtx.fillStyle = "#00d2d3";
+          targetCtx.fillRect(bx - size*0.5, by - size*0.1, size, 6);
+          targetCtx.fillStyle = "#ff4757";
+          targetCtx.fillRect(bx - 3, by - size*1.5, 6, 8);
+        } else if(bitInfo.typeTag === 'yinyang') {
+          targetCtx.strokeStyle = "#111"; targetCtx.lineWidth = 2;
+          targetCtx.beginPath(); targetCtx.arc(bx - size*0.35, by, 4, 0.1*Math.PI, 0.9*Math.PI); targetCtx.stroke();
+          targetCtx.strokeStyle = "#fff";
+          targetCtx.beginPath(); targetCtx.arc(bx + size*0.35, by, 4, 0.1*Math.PI, 0.9*Math.PI); targetCtx.stroke();
+        } else if(bitInfo.typeTag === 'shadow_milk') {
+          targetCtx.fillStyle = "#fffa65"; targetCtx.fillRect(bx - size*0.4, by - 3, 6, 6);
+          targetCtx.fillStyle = "#17c0eb"; targetCtx.fillRect(bx + size*0.2, by - 3, 6, 6);
+          targetCtx.strokeStyle = "#111"; targetCtx.lineWidth = 2;
+          targetCtx.beginPath(); targetCtx.arc(bx, by + 4, 8, 0, Math.PI); targetCtx.stroke();
+        } else {
+          targetCtx.fillStyle = "#111";
+          targetCtx.beginPath(); targetCtx.arc(bx - size * 0.35, by, size * 0.13, 0, Math.PI * 2); targetCtx.arc(bx + size * 0.35, by, size * 0.13, 0, Math.PI * 2); targetCtx.fill();
+          targetCtx.fillStyle = "#fff";
+          targetCtx.beginPath(); targetCtx.arc(bx - size * 0.38, by - size * 0.04, size * 0.05, 0, Math.PI * 2); targetCtx.arc(bx + size * 0.32, by - size * 0.04, size * 0.05, 0, Math.PI * 2); targetCtx.fill();
+          targetCtx.fillStyle = "rgba(255, 120, 150, 0.7)";
+          targetCtx.beginPath(); targetCtx.arc(bx - size * 0.55, by + size * 0.22, size * 0.18, 0, Math.PI * 2); targetCtx.arc(bx + size * 0.55, by + size * 0.22, size * 0.18, 0, Math.PI * 2); targetCtx.fill();
+          targetCtx.strokeStyle = "#111"; targetCtx.lineWidth = 2; targetCtx.beginPath(); targetCtx.arc(bx, by + size * 0.18, size * 0.22, 0.1 * Math.PI, 0.9 * Math.PI); targetCtx.stroke();
+        }
+
+        if(bitInfo.typeTag === 'flyder') {
+          targetCtx.strokeStyle = "#f39c12"; targetCtx.lineWidth = 3;
+          targetCtx.strokeRect(bx - size*0.7, by - 6, size*1.4, 10);
+        }
+        if(bitInfo.typeTag === 'juniors') {
+          targetCtx.strokeStyle = "#111"; targetCtx.lineWidth = 2;
+          targetCtx.strokeRect(bx - 12, by - 4, 9, 8); targetCtx.strokeRect(bx + 3, by - 4, 9, 8);
+        }
+        if(bitInfo.typeTag === '67bit') {
+          targetCtx.fillStyle = bodyColor;
+          targetCtx.beginPath(); targetCtx.arc(bx - size*1.2, by + 4, 6, 0, Math.PI*2); targetCtx.fill();
+          targetCtx.beginPath(); targetCtx.arc(bx + size*1.2, by + 4, 6, 0, Math.PI*2); targetCtx.fill();
+        }
+      }
+
+      if (bitInfo.isGod) {
+        targetCtx.fillStyle = "#ffd700"; targetCtx.beginPath();
+        targetCtx.moveTo(bx - size * 0.7, by - size * 1.2); targetCtx.lineTo(bx - size * 0.5, by - size * 1.8);
+        targetCtx.lineTo(bx, by - size * 1.3); targetCtx.lineTo(bx + size * 0.5, by - size * 1.8);
+        targetCtx.lineTo(bx + size * 0.7, by - size * 1.2); targetCtx.closePath(); targetCtx.fill();
+      }
+
+      targetCtx.restore();
+    }
+
+    // ==========================================
+    // 💀 보스전 시스템
+    // ==========================================
+    let currentBoss = null;
+    let bossStartTime = 0;
+    
+    class Boss {
+      constructor(difficulty) {
+        this.diff = difficulty; 
+        this.x = canvas.width / 2;
+        this.y = 100;
+        this.isDead = false;
+        this.frame = 0;
+        this.phase = 1;
+        
+        if(this.diff === 0) { this.maxHp = 8000; this.atk = 3; }
+        else if(this.diff === 1) { this.maxHp = 25000; this.atk = 8; }
+        else if(this.diff === 2) { this.maxHp = 80000; this.atk = 20; }
+        else if(this.diff === 3) { this.maxHp = 250000; this.atk = 50; }
+        else if(this.diff === 4) { this.maxHp = 1000000; this.atk = 150; }
+        
+        this.hp = this.maxHp;
+        this.targetX = this.x;
+      }
+      
+      update() {
+        if(this.isDead) return;
+        this.frame++;
+        
+        if(this.frame % 80 === 0 && this.diff !== 4) { this.targetX = 60 + Math.random() * (canvas.width - 120); }
+        this.x += (this.targetX - this.x) * 0.04;
+
+        if(this.diff <= 2) {
+          let atkRate = this.diff === 0 ? 110 : (this.diff === 1 ? 80 : 50);
+          if(this.frame % atkRate === 0) {
+            bossProjectiles.push({ type: 'meteor', x: this.x, y: this.y + 30, vx: (Math.random()-0.5)*2.5, vy: 2.8 + this.diff * 0.5, dmg: this.atk, size: 24 });
+          }
+        }
+        
+        if(this.diff === 3) {
+          if(this.frame % 140 === 0) { this.y += 40; setTimeout(() => this.y -= 40, 500); }
+          if(this.frame % 55 === 0) {
+             bossProjectiles.push({ type: 'liquid', x: this.x, y: this.y+20, vx: (Math.random()-0.5)*3.5, vy: 4.5, dmg: this.atk, size: 12 });
+          }
+          if(this.frame % 160 === 0) {
+             bossProjectiles.push({ type: 'ghost', x: this.x, y: this.y, vx: (playerX - this.x)*0.02, vy: 2.5, dmg: this.atk*1.3, size: 18 });
+          }
+        }
+        
+        if(this.diff === 4) {
+          if(this.hp < this.maxHp / 2 && this.phase === 1) {
+            this.phase = 2; 
+            bossProjectiles.push({ type: 'shell', x: this.x, y: this.y, vx: 0, vy: 6, dmg: this.atk*2, size: 45 });
+          }
+          
+          if(this.phase === 1) {
+            if(this.frame % 60 === 0) this.targetX = 60 + Math.random() * (canvas.width - 120);
+            if(this.frame % 45 === 0) {
+               bossProjectiles.push({ type: 'laser', x: this.x-40, y: this.y+40, vx: 0, vy: 8, dmg: this.atk, color: '#00ffcc' });
+               bossProjectiles.push({ type: 'laser', x: this.x+40, y: this.y+40, vx: 0, vy: 8, dmg: this.atk, color: '#ffffff' });
+            }
+            if(this.frame % 120 === 0) {
+               bossProjectiles.push({ type: 'volt', x: this.x, y: this.y+50, vx: (playerX - this.x)*0.025, vy: 5, dmg: this.atk, size: 14 });
+            }
+          } else {
+            if(this.frame % 30 === 0) this.targetX = playerX + (Math.random()-0.5)*90;
+            if(this.frame % 70 === 0) { this.y += 80; setTimeout(() => this.y -= 80, 300); }
+            if(this.frame % 25 === 0) {
+               bossProjectiles.push({ type: 'orb_laser', x: this.x, y: this.y, vx: (Math.random()-0.5)*4, vy: 7, dmg: this.atk, color: '#00ff00' });
+            }
+          }
+        }
+
+        if(Math.random() < 0.006) {
+          potions.push({ x: 30 + Math.random() * (canvas.width - 60), y: -30, vy: 2.2 });
+        }
+      }
+      
+      draw(ctx) {
+        ctx.save();
+        if(this.isDead) {
+          ctx.globalAlpha = 0.5; ctx.translate(this.x, this.y);
+          ctx.strokeStyle = '#ff3333'; ctx.lineWidth = 6;
+          ctx.beginPath(); ctx.moveTo(-25, -25); ctx.lineTo(25, 25); ctx.moveTo(25, -25); ctx.lineTo(-25, 25); ctx.stroke();
+          ctx.restore(); return;
+        }
+
+        if(this.diff <= 2) {
+           ctx.fillStyle = '#4a4a4a';
+           ctx.beginPath(); ctx.moveTo(this.x - 45, this.y + 40); ctx.lineTo(this.x + 45, this.y + 40); ctx.lineTo(this.x + 22, this.y - 20); ctx.lineTo(this.x - 22, this.y - 20); ctx.fill();
+           ctx.fillStyle = '#ff2200'; ctx.beginPath(); ctx.ellipse(this.x, this.y - 20, 22, 6, 0, 0, Math.PI*2); ctx.fill();
+           if(this.diff === 2) {
+             ctx.fillStyle = `rgba(255,120,0,${0.4 + Math.random()*0.6})`;
+             ctx.beginPath(); ctx.arc(this.x + (Math.random()-0.5)*45, this.y + (Math.random()-0.5)*45, 14, 0, Math.PI*2); ctx.fill();
+           }
+        } else if(this.diff === 3) {
+           ctx.fillStyle = 'rgba(210,210,210,0.6)'; ctx.fillRect(this.x - 30, this.y - 40, 60, 60);
+           ctx.fillStyle = '#333'; ctx.fillRect(this.x - 35, this.y + 20, 70, 20);
+           ctx.fillStyle = '#8b0000'; ctx.fillRect(this.x - 25, this.y + 8, 50, 12);
+           ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.frame * 0.4);
+           ctx.fillStyle = '#fff'; ctx.fillRect(-22, -2, 44, 4); ctx.restore();
+        } else if(this.diff === 4) {
+           if(this.phase === 1) {
+             ctx.fillStyle = '#ddd'; ctx.fillRect(this.x - 70, this.y - 50, 140, 100);
+             ctx.fillStyle = '#111'; ctx.fillRect(this.x - 60, this.y - 40, 90, 80);
+             ctx.strokeStyle = '#fff'; ctx.lineWidth = 3;
+             ctx.beginPath(); ctx.moveTo(this.x - 50, this.y); ctx.lineTo(this.x - 30, this.y - 25); ctx.lineTo(this.x - 15, this.y); ctx.stroke();
+             ctx.beginPath(); ctx.moveTo(this.x - 5, this.y); ctx.lineTo(this.x + 10, this.y - 25); ctx.lineTo(this.x + 20, this.y); ctx.stroke();
+             ctx.beginPath(); ctx.arc(this.x - 15, this.y + 15, 35, 0.2*Math.PI, 0.8*Math.PI); ctx.stroke();
+             ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(this.x + 50, this.y - 20, 15, 0, Math.PI*2); ctx.fill();
+             ctx.fillStyle = '#111'; ctx.fillRect(this.x + 35, this.y + 10, 30, 20);
+             ctx.fillStyle = '#00ffcc'; ctx.font = "12px monospace"; ctx.fillText("10:21", this.x + 36, this.y + 24);
+           } else {
+             ctx.shadowBlur = 25; ctx.shadowColor = '#00ff00';
+             ctx.fillStyle = '#00ff00'; ctx.beginPath(); ctx.arc(this.x, this.y, 30 + Math.sin(this.frame*0.2)*4, 0, Math.PI*2); ctx.fill();
+             ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(this.x, this.y, 10, 0, Math.PI*2); ctx.fill();
+           }
+        }
+        ctx.restore();
+      }
+    }
+    
+    function drawBossProjectiles() {
+      for (let i = bossProjectiles.length - 1; i >= 0; i--) {
+        let p = bossProjectiles[i];
+        p.x += p.vx; p.y += p.vy;
+        
+        ctx.save();
+        if(p.type === 'meteor') {
+          ctx.fillStyle = '#7f7f7f'; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
+          ctx.strokeStyle = '#555'; ctx.lineWidth = 3; ctx.stroke();
+          ctx.fillStyle = '#ff4400'; ctx.beginPath(); ctx.arc(p.x - 6, p.y - 8, 4, 0, Math.PI*2); ctx.fill();
+          ctx.fillStyle = '#111';
+          ctx.beginPath(); ctx.arc(p.x - 7, p.y - 1, 3, 0, Math.PI*2); ctx.arc(p.x + 7, p.y - 1, 3, 0, Math.PI*2); ctx.fill();
+          ctx.strokeStyle = '#111'; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.moveTo(p.x - 11, p.y - 6); ctx.lineTo(p.x - 4, p.y - 3); ctx.moveTo(p.x + 11, p.y - 6); ctx.lineTo(p.x + 4, p.y - 3); ctx.stroke();
+          ctx.fillStyle = '#00bfff'; ctx.beginPath(); ctx.arc(p.x - 7, p.y + 7, 2, 0, Math.PI*2); ctx.fill();
+        } else if(p.type === 'liquid') {
+          ctx.fillStyle = '#8b0000'; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
+        } else if(p.type === 'ghost') {
+          ctx.fillStyle = 'rgba(255,255,255,0.75)'; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, Math.PI, 0); ctx.lineTo(p.x+p.size, p.y+p.size); ctx.lineTo(p.x-p.size, p.y+p.size); ctx.fill();
+        } else if(p.type === 'laser' || p.type === 'orb_laser') {
+          ctx.fillStyle = p.color; ctx.shadowBlur = 10; ctx.shadowColor = p.color; ctx.fillRect(p.x - 4, p.y, 8, 22);
+        } else if(p.type === 'volt') {
+          ctx.strokeStyle = '#ffff00'; ctx.lineWidth = 3;
+          ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - 10, p.y + 10); ctx.lineTo(p.x + 10, p.y + 20); ctx.lineTo(p.x, p.y + 30); ctx.stroke();
+        } else if(p.type === 'shell') {
+          ctx.fillStyle = '#bbb'; ctx.fillRect(p.x - 70, p.y - 50, 140, 100);
+        }
+        ctx.restore();
+
+        let bottomY = canvas.height - 45;
+        let hitDist = p.size ? (p.size + 16) : 25;
+        if(Math.hypot(playerX - p.x, bottomY - p.y) < hitDist) {
+          let incomingDmg = p.dmg;
+          if(bits[equippedBitIndex].typeTag === 'trans' && transTimer > 0) {
+            incomingDmg *= 0.8;
+          }
+          playerHp -= incomingDmg;
+          playSound('hit');
+          document.getElementById("game-container").classList.add("shake");
+          setTimeout(() => document.getElementById("game-container").classList.remove("shake"), 200);
+          updateHpUI();
+          bossProjectiles.splice(i, 1);
+          if (playerHp <= 0) gameOverBoss(false);
+          continue;
+        }
+        if(p.y > canvas.height + 60) bossProjectiles.splice(i, 1);
+      }
+    }
+
+    function drawPotions() {
+      let bottomY = canvas.height - 45;
+      for (let i = potions.length - 1; i >= 0; i--) {
+        let pt = potions[i];
+        pt.y += pt.vy;
+        
+        ctx.save();
+        ctx.fillStyle = '#8B5A2B'; ctx.fillRect(pt.x - 4, pt.y - 18, 8, 4);
+        ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.fillRect(pt.x - 3, pt.y - 14, 6, 4);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.beginPath(); ctx.arc(pt.x, pt.y, 14, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)'; ctx.lineWidth = 2; ctx.stroke();
+        ctx.fillStyle = '#ff0055';
+        ctx.beginPath(); ctx.arc(pt.x, pt.y + 2, 10, 0, Math.PI); ctx.fill();
+        ctx.fillStyle = '#ffffff'; ctx.font = '12px Arial'; ctx.fillText('❤', pt.x - 6, pt.y + 2);
+        ctx.restore();
+        
+        if (Math.hypot(playerX - pt.x, bottomY - pt.y) < 28) {
+          playSound('heal');
+          playerHp += bits[equippedBitIndex].hp * 0.35; 
+          if(playerHp > bits[equippedBitIndex].hp) playerHp = bits[equippedBitIndex].hp;
+          updateHpUI();
+          potions.splice(i, 1);
+          continue;
+        }
+        if(pt.y > canvas.height + 40) potions.splice(i, 1);
+      }
+    }
+
+    function updateBossHpUI() {
+      if(!currentBoss) return;
+      const fill = document.getElementById("boss-hp-fill");
+      const percent = (currentBoss.hp / currentBoss.maxHp) * 100;
+      fill.style.width = `${Math.max(0, percent)}%`;
+      
+      const now = Date.now();
+      const timeStr = ((now - bossStartTime) / 1000).toFixed(2);
+      document.getElementById("boss-timer").innerText = `${timeStr}s`;
+    }
+
+    function startBossMode(diff) {
+      gameMode = 'boss';
+      currentBoss = new Boss(diff);
+      bossStartTime = Date.now();
+      playerHp = bits[equippedBitIndex].hp;
+      playerX = canvas.width / 2;
+      bossProjectiles = [];
+      potions = [];
+      projectiles = [];
+      isGameOver = false;
+      isPaused = false;
+      
+      document.getElementById("boss-hp-container").style.display = 'block';
+      document.getElementById("boss-timer").style.display = 'block';
+      document.getElementById("boss-lobby-screen").classList.add("hidden");
+      document.getElementById("stage-txt").innerText = `😈 BOSS MODE`;
+      updateHpUI();
+      initAudio();
+      gameLoop();
+    }
+
+    function gameOverBoss(isWin) {
+      isGameOver = true;
+      document.getElementById("boss-hp-container").style.display = 'none';
+      document.getElementById("boss-timer").style.display = 'none';
+      
+      if(isWin) {
+        currentBoss.isDead = true;
+        const timeStr = ((Date.now() - bossStartTime) / 1000).toFixed(2);
+        setTimeout(() => {
+          if(currentBoss.diff === 4) {
+            document.getElementById("ending-screen").classList.remove("hidden");
+          } else {
+            document.getElementById("result-title").innerText = "🎉 보스 격파 성공!";
+            document.getElementById("result-title").style.color = "#00ffcc";
+            document.getElementById("final-score").innerText = `소요 시간: ${timeStr}초\n보스를 멋지게 쓰러뜨렸습니다!`;
+            document.getElementById("gameover-screen").classList.remove("hidden");
+          }
+        }, 1200);
+      } else {
+        document.getElementById("result-title").innerText = "GAME OVER";
+        document.getElementById("result-title").style.color = "#ff3333";
+        document.getElementById("final-score").innerText = `보스의 공격을 버티지 못했습니다...`;
+        document.getElementById("gameover-screen").classList.remove("hidden");
+      }
+    }
+
+    // ==========================================
+    // 👾 일반 몬스터 시스템 (속도 대폭 하향 완료!)
+    // ==========================================
+    class Monster {
+      constructor() { this.reset(); }
+      reset() {
+        this.radius = 18 + Math.random() * 6;
+        this.x = Math.random() * (canvas.width - 60) + 30;
+        // 위쪽에서 넉넉하게 스폰
+        this.y = -60 - Math.random() * 100;
+        // ★ 난이도 완화: 기본 속도 0.28, 스테이지당 0.05만 증가, 랜덤 속도 제거! ★
+        this.baseSpeed = 0.28 + (stage * 0.05);
+        this.speed = this.baseSpeed;
+        this.maxHp = 2 + (stage * 2);
+        this.hp = this.maxHp;
+        this.mouthAngle = 0.2; this.mouthDir = 0.02;
+        this.color = stage >= 5 ? "#ff3333" : (stage >= 3 ? "#ff9900" : "#ffff00");
+        this.frozenTimer = 0;
+      }
+      update() {
+        if (isGameOver || isPaused) return;
+
+        if(this.frozenTimer > 0) {
+          this.frozenTimer--;
+          this.speed = this.baseSpeed * 0.2;
+        } else {
+          this.speed = this.baseSpeed;
+        }
+
+        this.y += this.speed;
+        this.mouthAngle += this.mouthDir;
+        if (this.mouthAngle > 0.4 || this.mouthAngle < 0.05) this.mouthDir = -this.mouthDir;
+        
+        if (this.y > canvas.height - 45) {
+          playSound('hit');
+          let incomingDmg = this.maxHp;
+          if(bits[equippedBitIndex].typeTag === 'trans' && transTimer > 0) {
+            incomingDmg *= 0.8;
+          }
+          playerHp -= incomingDmg;
+          document.getElementById("game-container").classList.add("shake");
+          setTimeout(() => document.getElementById("game-container").classList.remove("shake"), 200);
+          updateHpUI(); this.reset();
+          if (playerHp <= 0) {
+            isGameOver = true;
+            document.getElementById("result-title").innerText = "GAME OVER";
+            document.getElementById("result-title").style.color = "#ff3333";
+            document.getElementById("final-score").innerHTML = `🌱 수확한 스테이지: ${stage}단계<br>👾 처치한 몬스터: ${kills}마리`;
+            document.getElementById("gameover-screen").classList.remove("hidden");
+          }
+        }
+      }
+      draw() {
+        ctx.save();
+        ctx.fillStyle = this.frozenTimer > 0 ? "#74b9ff" : this.color;
+        ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, (0.5 + this.mouthAngle) * Math.PI, (2.5 - this.mouthAngle) * Math.PI, false); ctx.lineTo(this.x, this.y); ctx.fill();
+        ctx.fillStyle = "#111"; ctx.beginPath(); ctx.arc(this.x - 4, this.y - (this.radius * 0.4), 3, 0, Math.PI * 2); ctx.fill();
+        const barW = this.radius * 1.6; ctx.fillStyle = "#444"; ctx.fillRect(this.x - barW / 2, this.y - this.radius - 12, barW, 4);
+        ctx.fillStyle = "#00ffcc"; ctx.fillRect(this.x - barW / 2, this.y - this.radius - 12, barW * (this.hp / this.maxHp), 4);
+        ctx.restore();
+      }
+    }
+    let monsters = [];
+    function updateMonsterCount() {
+      const targetCount = Math.min(2 + Math.floor((stage - 1) * 0.5), 5);
+      while (monsters.length < targetCount) monsters.push(new Monster());
+    }
+
+    // ==========================================
+    // 메인 루프
+    // ==========================================
+    function gameLoop() {
+      if (isPaused) {
+        requestAnimationFrame(gameLoop);
+        return;
+      }
+      if (isGameOver && !currentBoss?.isDead) return;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const cur = bits[equippedBitIndex];
+      const bottomY = canvas.height - 45;
+
+      if(transTimer > 0) transTimer--;
+
+      if(gameMode === 'boss') {
+        if(keys.a || keys.left) playerX -= 6;
+        if(keys.d || keys.right) playerX += 6;
+        if(playerX < 25) playerX = 25;
+        if(playerX > canvas.width - 25) playerX = canvas.width - 25;
+      } else {
+        playerX = canvas.width / 2;
+      }
+
+      if (!isGameOver) {
+        if (cur.isFour) {
+          const positions = [playerX - 55, playerX - 18, playerX + 18, playerX + 55];
+          const subColors = ["#e84393", "#e74c3c", "#fd79a8", "#6c5ce7"];
+          positions.forEach((px, i) => drawVegetableBeet(ctx, px, bottomY, cur.size, subColors[i], cur.leafColor, {}));
+        } else {
+          drawVegetableBeet(ctx, playerX, bottomY, cur.size, cur.color, cur.leafColor, cur);
+        }
+      }
+
+      for (let i = projectiles.length - 1; i >= 0; i--) {
+        const p = projectiles[i];
+        ctx.save(); ctx.globalAlpha = p.alpha;
+        let drawColor = p.color;
+        if(p.rainbow) drawColor = `hsl(${(Date.now() / 5 + i * 15) % 360}, 100%, 60%)`;
+
+        if (p.type === 'shield') {
+          ctx.translate(p.x2, p.y2);
+          ctx.rotate((1 - p.alpha) * Math.PI);
+          ctx.fillStyle = drawColor;
+          ctx.fillRect(-p.width*1.2, -p.width*1.2, p.width*2.4, p.width*2.4);
+          ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
+          ctx.strokeRect(-p.width*1.2, -p.width*1.2, p.width*2.4, p.width*2.4);
+        } else if (p.type === 'spear') {
+          ctx.strokeStyle = "#f39c12"; ctx.lineWidth = p.width * 1.5;
+          ctx.beginPath(); ctx.moveTo(p.x1, p.y1); ctx.lineTo(p.x2, p.y2); ctx.stroke();
+          ctx.fillStyle = "#e74c3c"; ctx.beginPath(); ctx.arc(p.x2, p.y2, 12, 0, Math.PI*2); ctx.fill();
+        } else if (p.type === 'yar') {
+          ctx.font = "bold 22px Arial"; ctx.fillStyle = "#ff4757";
+          ctx.fillText("야르!", p.x2 - 20, p.y2);
+        } else if (p.type === 'thunder') {
+          ctx.strokeStyle = "#00d2d3"; ctx.lineWidth = p.width;
+          ctx.beginPath(); ctx.moveTo(p.x1, p.y1);
+          let midX = (p.x1 + p.x2) / 2 + (Math.random() - 0.5) * 30;
+          let midY = (p.y1 + p.y2) / 2;
+          ctx.lineTo(midX, midY); ctx.lineTo(p.x2, p.y2); ctx.stroke();
+        } else if (p.type === 'frost') {
+          ctx.fillStyle = "#dff9fb"; ctx.beginPath(); ctx.arc(p.x2, p.y2, 14, 0, Math.PI*2); ctx.fill();
+          ctx.strokeStyle = "#22a6b3"; ctx.lineWidth = 3; ctx.stroke();
+        } else {
+          ctx.strokeStyle = drawColor;
+          ctx.lineWidth = p.width;
+          ctx.shadowBlur = 12;
+          ctx.shadowColor = drawColor;
+          ctx.beginPath();
+          ctx.moveTo(p.x1, p.y1);
+          ctx.lineTo(p.x2, p.y2);
+          ctx.stroke();
+        }
+        ctx.restore();
+        p.alpha -= 0.12;
+        if (p.alpha <= 0) projectiles.splice(i, 1);
+      }
+
+      if(gameMode === 'normal') {
+        monsters.forEach(m => { m.update(); m.draw(); });
+      } else {
+        currentBoss.update(); currentBoss.draw(ctx);
+        drawBossProjectiles();
+        drawPotions();
+        updateBossHpUI();
+      }
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    // ==========================================
+    // 공격 함수
+    // ==========================================
+    function shoot() {
+      if (isGameOver || isPaused) return; 
+      initAudio(); 
+      const cur = bits[equippedBitIndex];
+      
+      if(cur.typeTag === 'trans') {
+        transTimer = 60;
+      }
+
+      if (cur.projectile === 'shield') playSound('shield');
+      else if (cur.projectile === 'thunder') playSound('thunder');
+      else if (cur.projectile === 'frost') playSound('freeze');
+      else if (cur.isGod) playSound('god');
+      else playSound('laser');
+
+      const bottomY = canvas.height - 45;
+
+      if(gameMode === 'normal') {
+        let validTargets = monsters.filter(m => m.y > 0).sort((a, b) => b.y - a.y);
+        if (validTargets.length === 0) validTargets = [monsters[0]];
+        const shots = Math.min(cur.multi, validTargets.length);
+
+        for (let s = 0; s < shots; s++) {
+          const target = validTargets[s % validTargets.length];
+          let startX = canvas.width / 2;
+          if (cur.isFour) {
+            startX += [-55, -18, 18, 55][s % 4];
+          } else if (cur.isAll || cur.multi > 6) {
+            startX += (Math.random() - 0.5) * 20;
+          }
+
+          projectiles.push({
+            x1: startX, y1: bottomY, x2: target.x, y2: target.y,
+            color: cur.color, width: cur.width, alpha: 1.0, 
+            type: cur.projectile || 'laser', rainbow: cur.rainbow
+          });
+
+          if(cur.projectile === 'frost') {
+            target.frozenTimer = 90;
+          }
+
+          if(cur.projectile === 'thunder' && validTargets.length > 1) {
+            let secondTarget = validTargets[(s + 1) % validTargets.length];
+            secondTarget.hp -= cur.damage * 0.5;
+            projectiles.push({
+              x1: target.x, y1: target.y, x2: secondTarget.x, y2: secondTarget.y,
+              color: "#00d2d3", width: cur.width * 0.7, alpha: 1.0, type: 'thunder'
+            });
+          }
+
+          target.hp -= cur.damage;
+          if (target.hp <= 0) {
+            coins += Math.max(5, Math.floor(target.maxHp * 1.5)) + (stage * 3);
+            kills++;
+            if (kills % 5 === 0) {
+              stage++;
+              document.getElementById("stage-txt").innerText = `🚀 STAGE ${stage}`;
+              updateMonsterCount();
+            }
+            document.getElementById("coin-txt").innerText = `💰 ${coins} C`;
+            target.reset();
+          }
+        }
+      } else {
+        if(!currentBoss || currentBoss.isDead) return;
+        const shots = cur.multi;
+        for (let s = 0; s < shots; s++) {
+          let startX = playerX;
+          if (cur.isFour) {
+            startX += [-55, -18, 18, 55][s % 4];
+          } else if (cur.isAll || cur.multi > 6) {
+            startX += (Math.random() - 0.5) * 30;
+          }
+
+          projectiles.push({
+            x1: startX, y1: bottomY, x2: currentBoss.x + (Math.random()-0.5)*25, y2: currentBoss.y + (Math.random()-0.5)*25,
+            color: cur.color, width: cur.width, alpha: 1.0,
+            type: cur.projectile || 'laser', rainbow: cur.rainbow
+          });
+        }
+        currentBoss.hp -= cur.damage * Math.min(cur.multi, 4);
+        if(currentBoss.hp <= 0) gameOverBoss(true);
+      }
+    }
+
+    // ==========================================
+    // 상점 & 비트 선택
+    // ==========================================
+    function renderShop(context) {
+      currentShopContext = context;
+      const list = document.getElementById("shop-list"); 
+      list.innerHTML = "";
+      
+      const titleElem = document.getElementById("shop-title");
+      if(context === 'boss') {
+        titleElem.innerText = "👑 보스전 비트 선택 (전체 71종 무료 해금!)";
+        titleElem.style.color = "#00ffcc";
+      } else {
+        titleElem.innerText = "🛒 비트 상점 (코인으로 구매)";
+        titleElem.style.color = "#ffeb3b";
+      }
+
+      bits.forEach((b, idx) => {
+        const item = document.createElement("div"); 
+        item.className = "shop-item" + (idx === equippedBitIndex ? " equipped" : "");
+        
+        let actionBtn = "";
+        if(context === 'boss') {
+          actionBtn = (idx === equippedBitIndex)
+            ? `<button class="item-buy-btn" style="background:#555; color:#aaa;" disabled>장착 중</button>`
+            : `<button class="item-buy-btn" style="background:#00ffcc; color:#111;" onclick="equipBit(${idx}, 'boss')">선택</button>`;
+        } else {
+          if(b.owned) {
+            actionBtn = (idx === equippedBitIndex)
+              ? `<button class="item-buy-btn" style="background:#555; color:#aaa;" disabled>장착 중</button>`
+              : `<button class="item-buy-btn" style="background:#00ffcc; color:#111;" onclick="equipBit(${idx}, 'normal')">장착</button>`;
+          } else {
+            actionBtn = `<button class="item-buy-btn" style="background:#f39c12; color:#fff;" onclick="buyBit(${idx})">${b.price}C</button>`;
+          }
+        }
+
+        item.innerHTML = `
+          <div style="flex:1;">
+            <div style="font-weight:bold; color:${b.color === '#000000' || b.color === '#190033' ? '#fff' : b.color}; font-size:15px; text-shadow: 1px 1px 2px #000;">${b.name}</div>
+            <div style="font-size:11px; color:#ff0055; font-weight:bold; margin-top:3px;">
+              ❤️ HP: ${b.hp.toLocaleString()} | ⚔️ DMG: ${b.damage.toLocaleString()} | 빔: ${b.multi}개
+            </div>
+          </div>
+          <div style="margin-left: 10px;">${actionBtn}</div>
+        `;
+        list.appendChild(item);
+      });
+    }
+
+    function buyBit(index) {
+      const b = bits[index];
+      if (coins >= b.price) {
+        coins -= b.price;
+        b.owned = true;
+        equipBit(index, 'normal');
+        document.getElementById("coin-txt").innerText = `💰 ${coins} C`;
+      } else { 
+        alert("코인이 부족해요! 일반 모드에서 몬스터를 더 처치하세요!"); 
+      }
+    }
+
+    function equipBit(index, context) {
+      equippedBitIndex = index; 
+      playerHp = bits[index].hp; 
+      updateHpUI(); 
+      renderShop(context || currentShopContext);
+    }
+
+    function generateBeatImage(b) {
+      const tempCanvas = document.createElement('canvas'); tempCanvas.width = 80; tempCanvas.height = 80;
+      drawVegetableBeet(tempCanvas.getContext('2d'), 40, 50, b.size, b.color, b.leafColor, b); return tempCanvas.toDataURL();
+    }
+
+    function renderGallery() {
+      const list = document.getElementById("gallery-list"); list.innerHTML = "";
+      bits.forEach((b) => {
+        const item = document.createElement("div"); item.className = "gallery-item";
+        let fc = (b.color === '#000000' || b.color === '#190033') ? '#ffffff' : b.color;
+        item.innerHTML = `<img src="${generateBeatImage(b)}" style="width:60px; height:60px; object-fit:contain; filter:drop-shadow(0 0 5px rgba(255,255,255,0.2));" /><div style="font-weight:bold; color:${fc}; font-size:12px; margin-top:6px; word-break:keep-all; line-height:1.2;">${b.name.replace('. ', '.<br/>')}</div>`;
+        list.appendChild(item);
+      });
+    }
+
+    // ==========================================
+    // 💬 실시간 채팅 기능
+    // ==========================================
+    const CHAT_API_URL = "https://jsonbase.com/beat_4bros_chat_v2/messages";
+    let lastChatCount = 0;
+
+    async function fetchChat() {
+      try {
+        let res = await fetch(CHAT_API_URL);
+        if(res.ok) {
+          let data = await res.json();
+          if(Array.isArray(data)) {
+            if (data.length !== lastChatCount) {
+               renderMessages(data);
+               lastChatCount = data.length;
+            }
+          }
+        }
+      } catch(e) {}
+    }
+
+    function renderMessages(data) {
+      const container = document.getElementById("chat-messages");
+      container.innerHTML = '<div style="color:#aaa; font-size:11px;">💬 실시간 채널입니다. 친구들과 함께 플레이하세요!</div>';
+      data.forEach(item => {
+         const div = document.createElement("div");
+         div.className = "chat-msg";
+         div.innerHTML = `<span class="chat-author">${escapeHtml(item.name)}:</span> ${escapeHtml(item.message)}`;
+         container.appendChild(div);
+      });
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function escapeHtml(string) {
+      const entityMap = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+      return String(string).replace(/[&<>"']/g, s => entityMap[s]);
+    }
+
+    document.getElementById("chat-input-bar").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const msgInput = document.getElementById("chat-msg-input");
+      const nickInput = document.getElementById("chat-nick-input");
+      const message = msgInput.value.trim();
+      const name = nickInput.value.trim() || "비트";
+      
+      if (message) {
+        const container = document.getElementById("chat-messages");
+        const div = document.createElement("div");
+        div.className = "chat-msg";
+        div.innerHTML = `<span class="chat-author">${escapeHtml(name)}:</span> ${escapeHtml(message)}`;
+        container.appendChild(div);
+        container.scrollTop = container.scrollHeight;
+
+        msgInput.value = "";
+        try {
+          let data = [];
+          let res = await fetch(CHAT_API_URL);
+          if(res.ok) {
+            let parsed = await res.json();
+            if(Array.isArray(parsed)) data = parsed;
+          }
+          data.push({name, message, time: Date.now()});
+          if(data.length > 50) data = data.slice(data.length - 50);
+          await fetch(CHAT_API_URL, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data)
+          });
+          lastChatCount = data.length;
+        } catch(e) {}
+      }
+    });
+
+    function openChat() {
+      const chatBox = document.getElementById("chat-box");
+      chatBox.classList.remove("hidden");
+      isPaused = true;
+      fetchChat();
+    }
+
+    function closeChat() {
+      const chatBox = document.getElementById("chat-box");
+      chatBox.classList.add("hidden");
+      if (document.getElementById("shop-screen").classList.contains("hidden") &&
+          document.getElementById("start-screen").classList.contains("hidden") &&
+          document.getElementById("boss-lobby-screen").classList.contains("hidden") &&
+          document.getElementById("gallery-screen").classList.contains("hidden")) {
+        isPaused = false;
+        requestAnimationFrame(gameLoop);
+      }
+    }
+
+    document.getElementById("chat-toggle-btn").addEventListener("click", () => {
+      const chatBox = document.getElementById("chat-box");
+      if (chatBox.classList.contains("hidden")) openChat();
+      else closeChat();
+    });
+    document.getElementById("chat-close-x-btn").addEventListener("click", closeChat);
+    setInterval(fetchChat, 2000);
+
+    // ==========================================
+    // UI 이벤트 리스너 & 클린 초기화 로직
+    // ==========================================
+    function fullResetGame() {
+      isGameOver = false; isPaused = false; stage = 1; kills = 0; coins = 0;
+      equippedBitIndex = 0;
+      bits.forEach((b, i) => b.owned = (i === 0));
+      playerHp = bits[0].hp; 
+      monsters = []; projectiles = []; bossProjectiles = []; potions = [];
+      document.getElementById("stage-txt").innerText = `🚀 STAGE 1`;
+      document.getElementById("coin-txt").innerText = `💰 0 C`;
+      updateHpUI();
+    }
+
+    document.getElementById("start-btn").addEventListener("click", () => {
+      initAudio(); gameMode = 'normal';
+      document.getElementById("start-screen").classList.add("hidden");
+      document.getElementById("boss-hp-container").style.display = 'none'; 
+      document.getElementById("boss-timer").style.display = 'none';
+      isPaused = false; isGameOver = false;
+      updateHpUI(); updateMonsterCount(); gameLoop();
+    });
+
+    document.getElementById("open-boss-lobby-btn").addEventListener("click", () => {
+      document.getElementById("start-screen").classList.add("hidden");
+      document.getElementById("boss-lobby-screen").classList.remove("hidden");
+    });
+    document.getElementById("close-boss-lobby-btn").addEventListener("click", () => {
+      document.getElementById("boss-lobby-screen").classList.add("hidden");
+      document.getElementById("start-screen").classList.remove("hidden");
+    });
+    document.getElementById("boss-select-beat-btn").addEventListener("click", () => {
+      renderShop('boss'); 
+      document.getElementById("boss-lobby-screen").classList.add("hidden"); 
+      document.getElementById("shop-screen").classList.remove("hidden");
+    });
+
+    document.querySelectorAll(".boss-diff-btn").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        let diff = parseInt(e.target.getAttribute('data-diff'));
+        startBossMode(diff);
+      });
+    });
+
+    document.getElementById("restart-btn").addEventListener("click", () => {
+      fullResetGame();
+      document.getElementById("gameover-screen").classList.add("hidden");
+      document.getElementById("start-screen").classList.remove("hidden");
+    });
+
+    document.getElementById("open-gallery-btn").addEventListener("click", () => {
+      renderGallery(); 
+      document.getElementById("start-screen").classList.add("hidden"); 
+      document.getElementById("gallery-screen").classList.remove("hidden");
+    });
+    document.getElementById("close-gallery-btn").addEventListener("click", () => {
+      document.getElementById("gallery-screen").classList.add("hidden"); 
+      document.getElementById("start-screen").classList.remove("hidden");
+    });
+    document.getElementById("attack-btn").addEventListener("click", shoot);
+    
+    document.getElementById("shop-btn").addEventListener("click", () => {
+      isPaused = true; 
+      renderShop('normal'); 
+      document.getElementById("shop-screen").classList.remove("hidden");
+    });
+
+    document.getElementById("close-shop-btn").addEventListener("click", () => {
+      document.getElementById("shop-screen").classList.add("hidden");
+      if(currentShopContext === 'boss') {
+        document.getElementById("boss-lobby-screen").classList.remove("hidden");
+      } else {
+        if (document.getElementById("chat-box").classList.contains("hidden")) {
+          isPaused = false;
+          requestAnimationFrame(gameLoop);
+        }
+      }
+    });
+
+    document.getElementById("skip-ending-btn").addEventListener("click", () => {
+      document.getElementById("ending-screen").classList.add("hidden");
+      document.getElementById("restart-btn").click();
+    });
+
+  </script>
+</body>
+</html>
